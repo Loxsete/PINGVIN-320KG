@@ -28,6 +28,7 @@ A tiny Linux-based system for messing around with minimal setups. It's got a cus
    ```bash
    git clone https://github.com/Loxsete/PINGVIN-320KG.git
    cd PINGVIN-320KG
+   compile linux kernel
    chmod +x run.sh
    run.sh
    ```
