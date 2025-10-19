@@ -49,6 +49,9 @@ done
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export HOME=/root
 export LD_LIBRARY_PATH=/usr/lib:/lib64
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+
 
 echo ""
 echo "============================================"
