@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# Скрипт для udhcpc (DHCP клиента)
+
+case "$1" in
+    bound|renew)
+        # Устанавливаем IP адрес
+        ip addr flush dev "$interface"
+        ip addr add "$ip/$mask" dev "$interface"
+        
+        # Устанавливаем шлюз по умолчанию
+        if [ -n "$router" ]; then
+            ip route add default via "$router" dev "$interface"
+        fi
+        
+        # Устанавливаем DNS
+        if [ -n "$dns" ]; then
+            echo "# DNS от DHCP" > /etc/resolv.conf
+            for nameserver in $dns; do
+                echo "nameserver $nameserver" >> /etc/resolv.conf
+            done
+        fi
+        
+        echo "[OK] Получен IP: $ip"
+        ;;
+    
+    deconfig)
+        ip addr flush dev "$interface"
+        ;;
+esac
+
+exit 0
