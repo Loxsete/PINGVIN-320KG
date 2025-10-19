@@ -48,6 +48,7 @@ done
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export HOME=/root
+export LD_LIBRARY_PATH=/usr/lib:/lib64
 
 echo ""
 echo "============================================"
@@ -60,6 +61,9 @@ echo ""
 echo "Network status:"
 ip addr show | grep "inet " | grep -v "127.0.0.1"
 echo ""
+
+
+
 
 while true; do
     setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'
