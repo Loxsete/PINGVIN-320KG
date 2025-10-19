@@ -1,0 +1,114 @@
+#!/bin/sh
+
+clear
+echo "PINGVIN 320KG OS INSTALLER"
+echo ""
+
+echo "Available disks:"
+cat /proc/partitions | awk 'NR>2 && $4 ~ /^[sv]d[a-z]$/ {printf "  %s (%d MB)\n", $4, $3/1024}'
+echo ""
+
+echo -n "Enter disk: "
+read DISK
+
+DISK_PATH="/dev/${DISK}"
+[ ! -b "$DISK_PATH" ] && echo "Error!" && exit 1
+
+echo "Selected: $DISK_PATH"
+echo -n "Type YES: "
+read CONFIRM
+[ "$CONFIRM" != "YES" ] && exit 0
+
+echo ""
+umount ${DISK_PATH}* 2>/dev/null
+
+echo "[1/5] Creating filesystem..."
+mke2fs -F "$DISK_PATH" || exit 1
+
+echo "[2/5] Mounting..."
+mkdir -p /mnt/target
+mount "$DISK_PATH" /mnt/target || exit 1
+
+echo "[3/5] Copying system..."
+for dir in bin sbin lib lib64 etc usr; do
+    [ -d "/$dir" ] && cp -a /$dir /mnt/target/ 2>/dev/null
+done
+
+mkdir -p /mnt/target/{boot,dev,proc,sys,tmp,run,var,root,home,mnt}
+mkdir -p /mnt/target/var/{log,cache,db}
+
+echo "[4/5] Creating init..."
+
+cat > /mnt/target/sbin/init << 'INITEOF'
+#!/bin/sh
+
+# Mount filesystems
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /tmp
+mount -o remount,rw /
+
+# Wait for devices
+sleep 1
+
+# Create devices if missing
+[ -c /dev/console ] || mknod /dev/console c 5 1
+[ -c /dev/null ] || mknod /dev/null c 1 3
+[ -c /dev/tty ] || mknod /dev/tty c 5 0
+
+# Network
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+ip link set lo up
+
+for iface in /sys/class/net/*; do
+    name=$(basename "$iface")
+    [ "$name" != "lo" ] && [ "$name" != "sit0" ] && ip link set "$name" up && udhcpc -i "$name" -n -q 2>/dev/null &
+done
+
+# Environment
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export HOME=/root
+export TERM=linux
+
+# Banner
+clear
+echo ""
+echo "PINGVIN 320KG OS - Installed"
+echo "Kernel: $(uname -r)"
+echo ""
+
+# ВАЖНО: Бесконечный цикл с shell
+while true; do
+    # Запускаем shell с привязкой к консоли
+    setsid /bin/sh -l <>/dev/console >&0 2>&1
+    
+    # Если shell вышел, перезапускаем
+    echo "Shell exited, restarting in 2 sec..."
+    sleep 2
+done
+INITEOF
+
+chmod +x /mnt/target/sbin/init
+
+echo "[5/5] Configuration..."
+
+cat > /mnt/target/etc/fstab << FSTAB
+$DISK_PATH / ext2 defaults 0 1
+proc /proc proc defaults 0 0
+sysfs /sys sysfs defaults 0 0
+FSTAB
+
+echo "pingvin320kg" > /mnt/target/etc/hostname
+
+sync
+umount /mnt/target
+
+echo ""
+echo "INSTALLATION COMPLETE!"
+echo ""
+echo "Boot command:"
+echo "qemu-system-x86_64 -kernel bzImage \\"
+echo "  -append 'root=$DISK_PATH rw init=/sbin/init console=tty0' \\"
+echo "  -drive file=disk.qcow2,format=qcow2 -m 512M"
+echo ""
