@@ -26,20 +26,16 @@ echo "pingvin320kg" > /proc/sys/kernel/hostname
 echo "[*] Setting up network..."
 ip link set lo up
 
-# DNS сразу
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 
-# Даем время ядру инициализировать сеть
 sleep 2
 
-# Настраиваем сетевые интерфейсы
 for iface in /sys/class/net/*; do
     iface_name=$(basename "$iface")
     if [ "$iface_name" != "lo" ] && [ "$iface_name" != "sit0" ]; then
         echo "[*] Found interface: $iface_name"
         
-        # ВАЖНО: Поднимаем интерфейс и ждём
         ip link set "$iface_name" up
         sleep 1
         
