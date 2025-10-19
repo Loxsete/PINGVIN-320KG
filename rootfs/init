@@ -1,53 +1,23 @@
 #!/bin/sh
 
-# Очистка экрана и вывод баннера
 clear
-echo ""
-echo "██████╗ ██╗███╗   ██╗ ██████╗ ██╗   ██║██╗███╗   ██╗"
-echo "██╔══██╗██║████╗  ██║██╔════╝ ██║   ██║██║████╗  ██║"
-echo "██████╔╝██║██╔██╗ ██║██║  ███╗██║   ██║██║██╔██╗ ██║"
-echo "██╔═══╝ ██║██║╚██╗██║██║   ██║╚██╗ ██╔╝██║██║╚██╗██║"
-echo "██║     ██║██║ ╚████║╚██████╔╝ ╚████╔╝ ██║██║ ╚████║"
-echo "╚═╝     ╚═╝╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝  ╚═══╝"
-echo ""
-echo "           320KG OF OPERATIONAL POWER!"
-echo "============================================"
-echo ""
-
-# Создание необходимых каталогов
 mkdir -p /proc /sys /dev /tmp /etc
 
-# Монтирование файловых систем с проверкой
-echo "[*] Mounting /proc..."
-mount -t proc none /proc || { echo "[!] Failed to mount /proc"; exit 1; }
-echo "[*] Mounting /sys..."
-mount -t sysfs none /sys || { echo "[!] Failed to mount /sys"; exit 1; }
-echo "[*] Mounting /dev..."
-mount -t devtmpfs none /dev || { echo "[!] Failed to mount /dev"; exit 1; }
-echo "[*] Mounting /tmp..."
-mount -t tmpfs none /tmp || { echo "[!] Failed to mount /tmp"; exit 1; }
+mount -t proc none /proc || exit 1
+mount -t sysfs none /sys || exit 1
+mount -t devtmpfs none /dev || exit 1
+mount -t tmpfs none /tmp || exit 1
 
-# Создание необходимых устройств
 [ -e /dev/null ] || mknod -m 666 /dev/null c 1 3
 [ -e /dev/console ] || mknod -m 600 /dev/console c 5 1
 [ -e /dev/tty ] || mknod -m 666 /dev/tty c 5 0
 
-# Установка имени хоста
-echo "[*] Setting hostname..."
-echo "pingvin320kg" > /proc/sys/kernel/hostname || echo "[!] Failed to set hostname"
-
-# Настройка loopback интерфейса
-echo "[*] Bringing up loopback interface..."
-ip link set lo up || echo "[!] Failed to bring up loopback"
-
-# Настройка DNS
-echo "[*] Configuring DNS..."
+echo "pingvin320kg" > /proc/sys/kernel/hostname
+ip link set lo up
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 
-# Создание минимального DHCP-скрипта, если он отсутствует
 if [ ! -f /etc/udhcpc.script ]; then
-    echo "[*] Creating /etc/udhcpc.script..."
     cat > /etc/udhcpc.script << 'EOF'
 #!/bin/sh
 case "$1" in
@@ -64,56 +34,26 @@ EOF
     chmod +x /etc/udhcpc.script
 fi
 
-# Настройка сетевых интерфейсов
-echo "[*] Scanning for network interfaces..."
 for iface in /sys/class/net/*; do
     iface_name=$(basename "$iface")
     if [ -z "$iface_name" ]; then
-        echo "[!] Empty interface name, skipping..."
         continue
     fi
     if [ "$iface_name" != "lo" ] && [ "$iface_name" != "sit0" ]; then
-        echo "[*] Found interface: $iface_name"
         if ip link set "$iface_name" up; then
-            echo "[*] Getting IP via DHCP for $iface_name..."
             if udhcpc -i "$iface_name" -s /etc/udhcpc.script -n -q; then
                 IP=$(ip addr show "$iface_name" | grep 'inet ' | awk '{print $2}')
-                if [ -n "$IP" ]; then
-                    echo "[OK] Interface $iface_name: $IP"
-                else
-                    echo "[!] Failed to get IP on $iface_name"
-                fi
-            else
-                echo "[!] DHCP failed for $iface_name"
             fi
-        else
-            echo "[!] Failed to bring up $iface_name"
         fi
         sleep 1
     fi
 done
 
-# Настройка окружения
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export HOME=/root
 export LD_LIBRARY_PATH=/usr/lib:/lib64
 
-# Вывод статуса системы
-echo ""
-echo "============================================"
-echo "  SYSTEM LOADED!"
-echo "============================================"
-echo "Kernel: $(uname -r)"
-echo "Hostname: $(hostname)"
-echo "Welcome to Pingvin 320KG OS!"
-echo ""
-echo "Network status:"
-ip addr show | grep "inet " | grep -v "127.0.0.1" || echo "[!] No network interfaces configured"
-echo ""
-
-# Запуск интерактивной оболочки
 while true; do
     setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'
-    echo "[!] Shell terminated. Restarting..."
     sleep 2
 done
